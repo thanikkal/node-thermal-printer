@@ -25,10 +25,9 @@ const PrinterTypes = require("../node-thermal-printer").types;
 let printer = new ThermalPrinter({
   type: PrinterTypes.STAR,                                  // Printer type: 'star' or 'epson'
   interface: 'tcp://xxx.xxx.xxx.xxx',                       // Printer interface
-  characterSet: 'SLOVENIA',                                 // Printer character set
+  characterSet: 'SLOVENIA',                                 // Printer character set - default: SLOVENIA
   removeSpecialCharacters: false,                           // Removes special characters - default: false
-  replaceSpecialCharacters: true,                           // Replaces special characters listed in config files - default: true
-  extraSpecialCharacters:{ '£':163 },                       // Adds additional special characters to those listed in the config files
+  lineCharacter: "=",                                       // Set character for lines - default: "-"
   options:{                                                 // Additional options
     timeout: 5000                                           // Connection timeout (ms) [applicable only for network printers] - default: 3000
   }
@@ -44,6 +43,8 @@ printer.cut();                                              // Cuts the paper (i
 printer.partialCut();                                       // Cuts the paper leaving a small bridge in middle (if printer supports multiple cut modes)
 printer.beep();                                             // Sound internal beeper/buzzer (if available)
 printer.upsideDown(true);                                   // Content is printed upside down (rotated 180 degrees)
+printer.setCharacterSet("SLOVENIA");                        // Set character set - default set on init
+printer.setPrinterDriver(Object)                            // Set printer drive - default set on init
 
 printer.bold(true);                                         // Set text bold
 printer.invert(true);                                       // Background/text color inversion
@@ -63,13 +64,14 @@ printer.setTextNormal();                                    // Set text to norma
 printer.setTextDoubleHeight();                              // Set text to double height
 printer.setTextDoubleWidth();                               // Set text to double width
 printer.setTextQuadArea();                                  // Set text to quad area
+printer.setTextSize(7,7);                                   // Set text height (0-7) and width (0-7)
 
 printer.leftRight("Left", "Right");                         // Prints text left and right
 printer.table(["One", "Two", "Three"]);                     // Prints table equaly
-printer.tableCustom([                                       // Prints table with custom settings (text, align, width, bold)
+printer.tableCustom([                                       // Prints table with custom settings (text, align, width, cols, bold)
   { text:"Left", align:"LEFT", width:0.5 },
   { text:"Center", align:"CENTER", width:0.25, bold:true },
-  { text:"Right", align:"RIGHT", width:0.25 }
+  { text:"Right", align:"RIGHT", cols:8 }
 ]);
 
 printer.code128("Code128");                                 // Print code128 bar code
@@ -83,20 +85,64 @@ print.setBuffer(newBuffer);                                 // Set the printer b
 print.getWidth();                                           // Get number of characters in one line
 ```
 
+### How to run examples (Set to EPSON)
+Network printer
+```bash
+node examples/example.js tcp://xxx.xxx.xxx.xxx
+```
+Pritner name via Printer module
+```bash
+node examples/example.js 'printer:My Printer'
+```
+Local port or file
+```bash
+node examples/example.js '\\.\COM1'
+```
 
-### Interace options
+
+### Interface options
 | Value | Descripton |
-|-------|------------|
+|---------------------------|------------|
 | `tcp://192.168.0.99:9100` | Network printer with port |
-| `printer:auto` | Auto select raw system printer via [Printer](https://www.npmjs.com/package/printer) or [Electron printer](https://www.npmjs.com/package/electron-printer) module |
-| `printer:My Printer Name` | Select system printer by name via [Printer](https://www.npmjs.com/package/printer) or [Electron printer](https://www.npmjs.com/package/electron-printer) module module |
-| `\\.\COM1` | Print via local port or file |
+| `printer:auto`            | Auto select raw system printer via [Printer](https://www.npmjs.com/package/printer) or [Electron printer](https://www.npmjs.com/package/electron-printer) module |
+| `printer:My Printer Name` | Select system printer by name via [Printer](https://www.npmjs.com/package/printer) or [Electron printer](https://www.npmjs.com/package/electron-printer) module |
+| `\\.\COM1`                | Print via local port or file |
 
 
-### Example
+#### System Printer Drivers
+When using a system printer, you need to provide the driver.
+Use electron-printer or printer driver:
 ```js
-const ThermalPrinter = require("../node-thermal-printer").printer;
-const PrinterTypes = require("../node-thermal-printer").types;
+const ThermalPrinter = require("node-thermal-printer").printer;
+const PrinterTypes = require("node-thermal-printer").types;
+const electron = typeof process !== 'undefined' && process.versions && !!process.versions.electron;
+
+let printer = new ThermalPrinter({
+  type: PrinterTypes.EPSON,
+  interface: 'printer:My Printer',
+  driver: require(electron ? 'electron-printer' : 'printer')
+});
+```
+
+Use a custom printer driver:
+```js
+const ThermalPrinter = require("node-thermal-printer").printer;
+const PrinterTypes = require("node-thermal-printer").types;
+
+let printer = new ThermalPrinter({
+  type: PrinterTypes.EPSON,
+  interface: 'printer:My Printer',
+  driver: MyCustomDriver
+});
+
+// you can also set the driver after init:
+printer.setPrinterDriver(MyCustomDriver)
+```
+
+### Network printing example
+```js
+const ThermalPrinter = require("node-thermal-printer").printer;
+const PrinterTypes = require("node-thermal-printer").types;
 
 let printer = new ThermalPrinter({
   type: PrinterTypes.EPSON,
@@ -170,6 +216,7 @@ var settings = {         // Optional Settings
 printer.printBarcode(data, type, settings);
 ```
 
+---
 
 ### Epson Barcode Reference
 |  # | Type                         | Possible Characters                                                                      | Length of Data         |
@@ -189,9 +236,57 @@ printer.printBarcode(data, type, settings);
 | 77 | GS1 DataBar  Limited         | 0 – 9                                                                                    | 13                     |
 | 78 | GS1 DataBar  Expanded        | 0 – 9, A – D, a – d, SP, !,  ", %, $, ', (, ), *, +, ,, -, .,  /, :, ;, <, =, >, ?, _, { | 2 - 255                |
 
+---
 
-### Usage Tips
-`characterSet` may be configured with `"raw"`, so no replacement is done at all.
+### STAR Barcode Reference
+```js
+var data = "TEST"        // Barcode data (string or buffer)
+var type = 7             // Barcode type (See Reference)
+var settings = {         // Optional Settings
+  characters: 1,         // Add characters (See Reference)
+  mode: 3,               // Barcode mode (See Reference)
+  height: 150,           // Barcode height (0≤ height ≤255)
+}
+
+printer.printBarcode(data, type, settings);
+```
+
+### Type
+| # | Type      |
+|:-:|-----------|
+| 0 | UPC-E     |
+| 1 | UPC-A     |
+| 2 | JAN/EAN8  |
+| 3 | JAN/EAN13 |
+| 4 | Code39    |
+| 5 | ITF       |
+| 6 | CODE128   |
+| 7 | CODE93    |
+| 8 | NW-7      |
+
+#### Settings characters
+| # | Description                                                                         |
+|:-:|-------------------------------------------------------------------------------------|
+| 1 | No added under-bar characters. Executes line feed after printing a bar code         |
+| 2 | Adds under-bar characters. Executes line feed after printing a bar code             |
+| 3 | No added under-bar characters. Does not execute line feed after printing a bar code |
+| 4 | Adds under-bar characters. Does not execute line feed after printing a bar code     |
+
+#### Settings mode
+| # | UPC-E, UPC-A, JAN/EAN8, JAN/EAN13, Code128, Code93  | Code39, NW-7             | ITF                       |
+|:-:|-----------------------------------------------------|--------------------------|---------------------------|
+| 1 | Minimum module 2 dots                               | Narrow: Wide = 2:6 dots  | Narrow: Wide = 2:5 dots   |
+| 2 | Minimum module 3 dots                               | Narrow: Wide = 3:9 dots  | Narrow: Wide = 4:10 dots  |
+| 3 | Minimum module 4 dots                               | Narrow: Wide = 4:12 dots | Narrow: Wide = 6:15 dots  |
+| 4 |                                                     | Narrow: Wide = 2:5 dots  | Narrow: Wide = 2:4 dots   |
+| 5 |                                                     | Narrow: Wide = 3:8 dots  | Narrow: Wide = 4:8 dots   |
+| 6 |                                                     | Narrow: Wide = 4:10 dots | Narrow: Wide = 6:12 dots  |
+| 7 |                                                     | Narrow: Wide = 2:4 dots  | Narrow: Wide = 2:6 dots   |
+| 8 |                                                     | Narrow: Wide = 3:6 dots  | Narrow: Wide = 3:9 dots   |
+| 9 |                                                     | Narrow: Wide = 4:8 dots  | Narrow: Wide = 4:12 dots  |
+
+
+---
 
 
 ### Docs
@@ -202,5 +297,46 @@ printer.printBarcode(data, type, settings);
 ### Tested printers:
 - Star TSP700
 - Rongta RP80US
+- Rongta RP326-USE
 - EPSON TM-T88V
 - Posman BTP-R880NP (Type "epson")
+
+
+### Character sets
+- PC437_USA
+- PC850_MULTILINGUAL
+- PC860_PORTUGUESE
+- PC863_CANADIAN_FRENCH
+- PC865_NORDIC
+- PC851_GREEK
+- PC857_TURKISH
+- PC737_GREEK
+- ISO8859_7_GREEK
+- WPC1252
+- PC866_CYRILLIC2
+- PC852_LATIN2
+- SLOVENIA
+- PC858_EURO
+- WPC775_BALTIC_RIM
+- PC855_CYRILLIC
+- PC861_ICELANDIC
+- PC862_HEBREW
+- PC864_ARABIC
+- PC869_GREEK
+- ISO8859_2_LATIN2
+- ISO8859_15_LATIN9
+- PC1125_UKRANIAN
+- WPC1250_LATIN2
+- WPC1251_CYRILLIC
+- WPC1253_GREEK
+- WPC1254_TURKISH
+- WPC1255_HEBREW
+- WPC1256_ARABIC
+- WPC1257_BALTIC_RIM
+- WPC1258_VIETNAMESE
+- KZ1048_KAZAKHSTAN
+
+
+
+## CHANGELOG
+See [CHANGELOG.md](./CHANGELOG.md)

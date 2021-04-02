@@ -9,18 +9,14 @@ async function example () {
     options: {
       timeout: 1000
     },
-    width: 48,                         // Number of characters in one line (default 48)
-    characterSet: 'SLOVENIA',          // Character set default SLOVENIA
+    width: 48,                         // Number of characters in one line - default: 48
+    characterSet: 'SLOVENIA',          // Character set - default: SLOVENIA
     removeSpecialCharacters: false,    // Removes special characters - default: false
-    replaceSpecialCharacters: true,    // Replaces special characters listed in config files - default: true
-    // lineChar: "=",                  // Use custom character for drawing lines
+    lineCharacter: "-",                // Use custom character for drawing lines - default: -
   });
 
   let isConnected = await printer.isPrinterConnected();
   console.log("Printer connected:", isConnected);
-
-  printer.setBuffer(Buffer.from("This is a test"));
-  printer.clear();
 
   printer.alignCenter();
   await printer.printImage('./assets/olaii-logo-black-small.png');
@@ -64,6 +60,9 @@ async function example () {
   printer.println("This is double width");
   printer.setTextQuadArea();
   printer.println("This is quad");
+  printer.setTextSize(7,7);
+  printer.println("Wow");
+  printer.setTextSize(0,0);
   printer.setTextNormal();
   printer.println("This is normal");
   printer.drawLine();
@@ -94,13 +93,18 @@ async function example () {
     { text:"Right", align:"RIGHT", width:0.25 }
   ]);
 
+  printer.tableCustom([
+    { text:"Left", align:"LEFT", cols:8 },
+    { text:"Center", align:"CENTER", cols:10, bold:true },
+    { text:"Right", align:"RIGHT", cols:10 }
+  ]);
 
   printer.cut();
   printer.openCashDrawer();
 
   try {
     await printer.execute();
-    console.log("Prin success.");
+    console.log("Print success.");
   } catch (error) {
     console.error("Print error:", error);
   }
